@@ -31,8 +31,7 @@ async def show_categories(message: types.Message):
     text = '''Текущие категории:
 '''
     for category, keywords in categories.items():
-        text += f"* {category}: {', '.join(keywords)}
-"
+        text += f"* {category}: {', '.join(keywords)}n"
     
     await message.answer(text, parse_mode="HTML")
 
