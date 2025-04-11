@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -65,7 +65,7 @@ async def add_income(message: types.Message, state: FSMContext):
         amount = int(match.group(1))
         description = match.group(2) or "Без описания"
         user_data[user_id]["income"].append((amount, description))
-        await message.answer(f"✅ Доход {amount} ₽ добавлен: {description} 💼") 
+        await message.answer(f"✅ Доход {amount} ₽ добавлен: {description} 💼", parse_mode="HTML")
     else:
         await message.answer("❗ Неверный формат. Попробуйте снова.")
     await state.clear()
@@ -89,7 +89,7 @@ async def add_expense(message: types.Message, state: FSMContext):
                 category = cat
                 break
         user_data[user_id]["expenses"].append((amount, description, category))
-        await message.answer(f"🔻 Расход {amount} ₽ добавлен: {description} (категория: {category})") 
+        await message.answer(f"🔻 Расход {amount} ₽ добавлен: {description} (категория: {category})", parse_mode="HTML")
     else:
         await message.answer("❗ Неверный формат. Попробуйте снова.")
     await state.clear()
@@ -99,7 +99,7 @@ async def show_stats(message: types.Message):
     user_id = message.from_user.id
     total_income = sum(i[0] for i in user_data[user_id]["income"])
     total_expenses = sum(e[0] for e in user_data[user_id]["expenses"])
-    await message.answer(f"📊 Всего доходов: {total_income} ₽\n📉 Всего расходов: {total_expenses} ₽")
+    await message.answer(f"📊 Всего доходов: {total_income} ₽\n📉 Всего расходов: {total_expenses} ₽", parse_mode="HTML")
 
 @dp.message(F.text == "📊 По категориям")
 async def category_stats(message: types.Message):
@@ -110,14 +110,14 @@ async def category_stats(message: types.Message):
     text = "📁 Статистика по категориям:\n"
     for cat, total in stats.items():
         text += f"🔸 {cat.capitalize()}: {total} ₽\n"
-    await message.answer(text)
+    await message.answer(text, parse_mode="HTML")
 
 @dp.message(F.text == "💰 Остаток")
 async def balance(message: types.Message):
     user_id = message.from_user.id
     income = sum(i[0] for i in user_data[user_id]["income"])
     expenses = sum(e[0] for e in user_data[user_id]["expenses"])
-    await message.answer(f"💼 Текущий баланс: {income - expenses} ₽")
+    await message.answer(f"💼 Текущий баланс: {income - expenses} ₽", parse_mode="HTML")
 
 @dp.message(F.text == "📝 Категории")
 async def edit_categories(message: types.Message, state: FSMContext):
@@ -126,7 +126,7 @@ async def edit_categories(message: types.Message, state: FSMContext):
     text = "📂 Текущие категории:\n"
     for category, keywords in categories.items():
         text += f"• {category}: {', '.join(keywords)}\n"
-    await message.answer(text + "\nВведите новую категорию и ключевые слова через запятую\nПример: техника, телефон, ноутбук")
+    await message.answer(text + "\nВведите новую категорию и ключевые слова через запятую\nПример: техника, телефон, ноутбук", parse_mode="HTML")
     await state.set_state(CategoryState.editing_category)
 
 @dp.message(CategoryState.editing_category)
@@ -138,9 +138,9 @@ async def save_category(message: types.Message, state: FSMContext):
         category = parts[0].strip()
         keywords = [p.strip().lower() for p in parts[1:]]
         user_data[user_id]["categories"][category] = keywords
-        await message.answer(f"✅ Категория '{category}' добавлена/обновлена.")
+        await message.answer(f"✅ Категория '{category}' добавлена/обновлена.", parse_mode="HTML")
     except:
-        await message.answer("❗ Ошибка. Формат: категория, ключевое слово1, ключевое слово2")
+        await message.answer("❗ Ошибка. Формат: категория, ключевое слово1, ключевое слово2", parse_mode="HTML")
     await state.clear()
 
 async def main():
