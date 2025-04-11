@@ -1,81 +1,78 @@
-import asyncio
 import logging
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ParseMode
+from aiogram.utils import executor
+from aiogram.types import Message
 import os
-from aiohttp import web
-from aiogram import Bot, Dispatcher, F
-from aiogram.filters import CommandStart
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from collections import defaultdict
 
 API_TOKEN = os.getenv("API_TOKEN")
-BASE_WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL")
-WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
-PORT = int(os.getenv("PORT", 10000))
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot)
 
-bot = Bot(token=API_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher()
+# Словарь для хранения данных о пользователях
+user_data = {}
 
-user_data = defaultdict(lambda: {"income": [], "expenses": []})
-
-main_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="📊 Статистика"), KeyboardButton(text="💰 Остаток")],
-        [KeyboardButton(text="📈 Категории")]
-    ],
-    resize_keyboard=True
-)
-
-@dp.message(CommandStart())
-async def start(message: Message):
+# Состояния и команды
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: Message):
+    user_id = message.from_user.id
+    user_data[user_id] = {"income": [], "expenses": [], "categories": {"еда": ["еда", "продукты"], "транспорт": ["метро", "такси", "автобус"], "развлечения": ["кино", "игры", "бар"], "прочее": []}}
+    
     await message.answer(
-        "👋 Привет! Я бот для учёта бюджета.
-"
-        "Просто отправь сообщение, например:
-
-"
-        "+50000 зарплата
-"
-        "1200 метро",
-        reply_markup=main_kb
+        "👋 Привет! Я бот для учёта бюджета. Просто отправь сообщение, например:\n"
+        "+50000 зарплата\n"
+        "1200 метро"
     )
 
-@dp.message(F.text == "📊 Статистика")
-async def stats(message: Message):
-    uid = message.from_user.id
-    income = sum(i[0] for i in user_data[uid]["income"])
-    expenses = sum(i[0] for i in user_data[uid]["expenses"])
-    await message.answer(f"📈 Доходы: {income} ₽
-📉 Расходы: {expenses} ₽")
+@dp.message_handler(commands=['категории'])
+async def show_categories(message: Message):
+    user_id = message.from_user.id
+    categories = user_data[user_id]["categories"]
+    
+    text = "📂 Текущие категории:\n"
+    for category, keywords in categories.items():
+        text += f"• {category}: {', '.join(keywords)}\n"
+    
+    await message.answer(text)
 
-@dp.message(F.text == "💰 Остаток")
-async def balance(message: Message):
-    uid = message.from_user.id
-    income = sum(i[0] for i in user_data[uid]["income"])
-    expenses = sum(i[0] for i in user_data[uid]["expenses"])
-    await message.answer(f"💼 Баланс: {income - expenses} ₽")
+@dp.message_handler(commands=['добавитькатегорию'])
+async def add_category(message: Message):
+    await message.answer("💼 Введите новую категорию и ключевые слова через запятую. Пример: транспорт, метро, такси, автобус")
 
-@dp.message(F.text == "📈 Категории")
-async def categories(message: Message):
-    await message.answer(
-        "✏️ Введите новую категорию и ключевые слова через запятую.
-"
-        "Пример: техника, ноутбук, телефон"
-    )
+@dp.message_handler()
+async def handle_message(message: Message):
+    user_id = message.from_user.id
+    text = message.text.strip()
+    
+    if text.startswith('+'):
+        # Это доход
+        try:
+            amount, description = text.split(" ", 1)
+            amount = int(amount.replace('+', '').strip())
+            user_data[user_id]["income"].append((amount, description))
+            await message.answer(f"Доход {amount} ₽ добавлен: {description}")
+        except:
+            await message.answer("❗ Неверный формат дохода. Используйте формат: +50000 зарплата")
+    
+    elif text.isdigit():
+        # Это расход
+        try:
+            amount = int(text)
+            category = "прочее"
+            for cat, keywords in user_data[user_id]["categories"].items():
+                if any(keyword in message.text.lower() for keyword in keywords):
+                    category = cat
+                    break
+            user_data[user_id]["expenses"].append((amount, category))
+            await message.answer(f"Расход {amount} ₽ добавлен в категорию: {category}")
+        except:
+            await message.answer("❗ Неверный формат расхода. Используйте формат: 1000 корм для кошки")
+    
+    else:
+        await message.answer("❗ Неверный формат. Попробуйте использовать команды /категории или /добавитькатегорию")
 
-async def on_startup(bot: Bot):
-    webhook_url = f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}"
-    await bot.set_webhook(webhook_url)
-
-async def main():
+# Запуск бота
+if __name__ == '__main__':
+    from aiogram import executor
     logging.basicConfig(level=logging.INFO)
-    app = web.Application()
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-    setup_application(app, dp, bot=bot)
-    await on_startup(bot)
-    web.run_app(app, host="0.0.0.0", port=PORT)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    executor.start_polling(dp, skip_updates=True)
