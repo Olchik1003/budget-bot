@@ -117,4 +117,4 @@ async def balance(message: types.Message):
     user_id = message.from_user.id
     income = sum(i[0] for i in user_data[user_id]["income"])
     expenses = sum(e[0] for e in user_data[user_id]["expenses"])
-    await message.answer(f"💼 Текущий баланс: {income - expenses} ₽", parse_mode="HTML_
+    await message.answer(f"💼 Текущий баланс: {income - expenses} ₽", parse_mode="HTML_)
