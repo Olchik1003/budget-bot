@@ -10,7 +10,8 @@ from collections import defaultdict
 import re
 
 # Инициализация бота
-API_TOKEN = '7698603121:AAHwEMq_KT6BOPI1MxMEQvlC3KmFA2L6Idc'
+import os
+API_TOKEN = os.getenv("API_TOKEN")
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
