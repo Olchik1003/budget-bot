@@ -46,13 +46,13 @@ class EditCategory(StatesGroup):
     waiting_input = State()
 
 @dp.message(CommandStart())
-async def cmd_start(message: Message):
+async def start(message: Message):
     await message.answer(
-        "👋 Привет! Я бот для учёта бюджета. Просто отправь сообщение, например:
+        """👋 Привет! Я бот для учёта бюджета.
+Просто отправь сообщение, например:
 
-"
-        "<code>+50000 зарплата</code>
-<code>1200 метро</code>",
+<code>+50000 зарплата</code>
+<code>1200 метро</code>""",
         reply_markup=main_kb
     )
 
