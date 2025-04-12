@@ -14,14 +14,16 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация бота
 API_TOKEN = os.getenv("API_TOKEN")
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "https://your-service-name.onrender.com")  # Замените на ваш URL
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "https://your-service-name.onrender.com")
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-# Инициализация бота
+# Инициализация бота с правильным закрытием скобок
 bot = Bot(
     token=API_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)  # Закрывающая скобка добавлена здесь
+
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -32,7 +34,6 @@ class AddCategoryState(StatesGroup):
     waiting_for_category = State()
 
 def initialize_user_data(user_id):
-    """Инициализация данных пользователя"""
     if user_id not in user_data:
         user_data[user_id] = {
             "income": [],
@@ -47,7 +48,6 @@ def initialize_user_data(user_id):
 
 @dp.message(F.text.lower().in_(["/start", "/help"]))
 async def send_welcome(message: types.Message):
-    """Обработка команд /start и /help"""
     initialize_user_data(message.from_user.id)
     await message.answer(
         "📊 Бот для учета бюджета\n\n"
@@ -60,10 +60,8 @@ async def send_welcome(message: types.Message):
 
 @dp.message(F.text.lower() == "/категории")
 async def show_categories(message: types.Message):
-    """Показать категории"""
     user_id = message.from_user.id
     initialize_user_data(user_id)
-    
     categories = "\n".join(
         f"• {cat}: {', '.join(keywords)}"
         for cat, keywords in user_data[user_id]["categories"].items()
@@ -72,13 +70,11 @@ async def show_categories(message: types.Message):
 
 @dp.message(F.text.lower() == "/добавитькатегорию")
 async def add_category_command(message: types.Message, state: FSMContext):
-    """Начало добавления категории"""
     await state.set_state(AddCategoryState.waiting_for_category)
     await message.answer("Введите название категории и ключевые слова через запятую:")
 
 @dp.message(AddCategoryState.waiting_for_category)
 async def process_category(message: types.Message, state: FSMContext):
-    """Обработка новой категории"""
     user_id = message.from_user.id
     parts = [p.strip() for p in message.text.split(",") if p.strip()]
     
@@ -93,7 +89,6 @@ async def process_category(message: types.Message, state: FSMContext):
 
 @dp.message(F.text.startswith("+"))
 async def add_income(message: types.Message):
-    """Добавление дохода"""
     try:
         amount = int(message.text.split()[0][1:])
         user_id = message.from_user.id
@@ -105,7 +100,6 @@ async def add_income(message: types.Message):
 
 @dp.message(F.text[0].isdigit())
 async def add_expense(message: types.Message):
-    """Добавление расхода"""
     try:
         amount = int(message.text.split()[0])
         user_id = message.from_user.id
@@ -125,17 +119,14 @@ async def add_expense(message: types.Message):
         await message.answer("❌ Формат: 1500 продукты")
 
 async def on_startup(app: web.Application):
-    """Действия при запуске"""
     await bot.set_webhook(WEBHOOK_URL)
     logger.info(f"Webhook установлен на {WEBHOOK_URL}")
 
 async def on_shutdown(app: web.Application):
-    """Действия при остановке"""
     await bot.delete_webhook()
     logger.info("Webhook удален")
 
 async def webhook_handler(request):
-    """Обработчик вебхука"""
     if request.match_info.get("token") == API_TOKEN:
         data = await request.json()
         update = types.Update(**data)
@@ -144,7 +135,6 @@ async def webhook_handler(request):
     return web.Response(status=403)
 
 def main():
-    """Основная функция"""
     app = web.Application()
     app.router.add_post(WEBHOOK_PATH, webhook_handler)
     app.on_startup.append(on_startup)
