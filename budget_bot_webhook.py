@@ -45,20 +45,17 @@ def initialize_user_data(user_id):
             }
         }
 
-# Все обработчики сообщений остаются без изменений...
+# [Ваши обработчики сообщений здесь...]
 
 async def on_startup(app: web.Application):
-    """Установка вебхука при старте приложения"""
     await bot.set_webhook(WEBHOOK_URL)
-    logger.info("Бот запущен, вебхук установлен")
+    logger.info("Webhook установлен")
 
 async def on_shutdown(app: web.Application):
-    """Удаление вебхука при остановке"""
     await bot.delete_webhook()
-    logger.info("Вебхук удален")
+    logger.info("Webhook удален")
 
 async def handle_webhook(request):
-    """Обработчик входящих обновлений"""
     if request.match_info.get('token') == API_TOKEN:
         update = types.Update(**(await request.json()))
         await dp.feed_update(bot=bot, update=update)
@@ -68,8 +65,6 @@ async def handle_webhook(request):
 def main():
     app = web.Application()
     app.router.add_post(WEBHOOK_PATH, handle_webhook)
-    
-    # Регистрация обработчиков старта/остановки
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
     
