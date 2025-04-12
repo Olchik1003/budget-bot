@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # Конфигурация бота
 API_TOKEN = os.getenv("API_TOKEN")
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "https://your-service-name.onrender.com")
-WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
+WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 # Инициализация бота с правильным закрытием скобок
