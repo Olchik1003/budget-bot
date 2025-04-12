@@ -1,9 +1,10 @@
 import logging
 from aiogram import Bot, Dispatcher, types, F
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.enums import ParseMode
 import os
 from aiohttp import web
 
@@ -13,12 +14,15 @@ logger = logging.getLogger(__name__)
 
 # Конфигурация бота
 API_TOKEN = os.getenv("API_TOKEN")
-WEBHOOK_HOST = 'https://your-domain.com'  # Замените на ваш домен
-WEBHOOK_PATH = '/webhook/' + API_TOKEN
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "https://your-domain.com")  # Замените на ваш домен
+WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-# Инициализация бота и диспетчера
-bot = Bot(token=API_TOKEN, parse_mode=ParseMode.HTML)
+# Инициализация бота с HTML-разметкой по умолчанию
+bot = Bot(
+    token=API_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -66,7 +70,7 @@ async def send_welcome(message: types.Message):
 <b>📋 Доступные команды:</b>
 /категории - показать все категории расходов
 /добавитькатегорию - добавить новую категорию
-/статистика - показать статистику (скоро)
+/статистика - показать статистику
 """
     await message.answer(help_text)
 
@@ -210,7 +214,7 @@ def main():
     web.run_app(
         app,
         host='0.0.0.0',
-        port=os.getenv("PORT", 3000)
+        port=int(os.getenv("PORT", 3000))
     )
 
 if __name__ == '__main__':
