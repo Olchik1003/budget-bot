@@ -1,120 +1,141 @@
-import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage
-from collections import defaultdict
-import re
+from aiogram.utils import executor
+import os
 
-API_TOKEN = '7654498035:AAEfTDuIVCXsQ7cccVmGDlfuEddoL3ZKDro'  # Ваш токен
+API_TOKEN = os.getenv("API_TOKEN")
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher(bot)
 
-user_data = defaultdict(lambda: {"income": [], "expenses": [], "categories": {}})
+# Словарь для хранения данных о пользователях
+user_data = {}
 
-# Клавиатура
-main_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="📈 Статистика")],
-        [KeyboardButton(text="➕ Доход"), KeyboardButton(text="💸 Расход")],
-        [KeyboardButton(text="📊 По категориям"), KeyboardButton(text="💰 Остаток")],
-        [KeyboardButton(text="📝 Категории")]
-    ],
-    resize_keyboard=True
-)
+def initialize_user_data(user_id):
+    """Инициализирует данные пользователя при первом использовании"""
+    if user_id not in user_data:
+        user_data[user_id] = {
+            "income": [],
+            "expenses": [],
+            "categories": {
+                "еда": ["еда", "продукты", "магазин", "супермаркет"],
+                "транспорт": ["метро", "такси", "автобус", "транспорт", "бензин"],
+                "развлечения": ["кино", "игры", "бар", "ресторан", "кафе", "концерт"],
+                "жилье": ["аренда", "коммуналка", "квартира", "дом"],
+                "здоровье": ["аптека", "врач", "больница", "лекарства"],
+                "прочее": []
+            }
+        }
 
-default_categories = {
-    "еда": ["еда", "продукты"],
-    "животные": ["корм", "кот", "собака", "животные"],
-    "транспорт": ["метро", "автобус", "такси"],
-    "развлечения": ["кино", "игры"],
-    "прочее": []
-}
-
-class ExpenseState(StatesGroup):
-    waiting_for_expense = State()
-
-class IncomeState(StatesGroup):
-    waiting_for_income = State()
-
-class CategoryState(StatesGroup):
-    editing_category = State()
-
-class DeleteState(StatesGroup):
-    choosing_delete = State()
-
-@dp.message_handler(commands=['start'])
-async def start(message: types.Message):
+@dp.message_handler(commands=['start', 'help'])
+async def send_welcome(message: types.Message):
+    """Обработчик команд /start и /help"""
     user_id = message.from_user.id
-    user_data[user_id]["categories"] = default_categories.copy()
-    await message.answer("🎉 Добро пожаловать в бот учёта бюджета! 📊\nГотов начать работу 💼", reply_markup=main_kb)
+    initialize_user_data(user_id)
+    
+    help_text = """
+Привет! Я бот для учёта бюджета. Вот что я умею:
 
-@dp.message_handler(lambda message: message.text == "➕ Доход")
-async def income_start(message: types.Message, state: FSMContext):
-    await message.answer("💰 Введите сумму дохода с описанием (необязательно), например: +50000 зарплата")
-    await state.set_state(IncomeState.waiting_for_income)
+<b>Добавить доход:</b>
++50000 зарплата
++3000 подарок
 
-@dp.message_handler(IncomeState.waiting_for_income)
-async def add_income(message: types.Message, state: FSMContext):
+<b>Добавить расход:</b>
+1500 метро
+2500 продукты
+3000 кино
+
+<b>Команды:</b>
+/категории - показать все категории расходов
+/добавитькатегорию - добавить новую категорию
+/статистика - показать статистику (скоро)
+"""
+    await message.answer(help_text, parse_mode="HTML")
+
+@dp.message_handler(commands=['категории'])
+async def show_categories(message: types.Message):
+    """Показать все категории расходов"""
     user_id = message.from_user.id
-    text = message.text
-    match = re.match(r"[+]?([\d]+)(?:\s+(.+))?", text)
-    if match:
-        amount = int(match.group(1))
-        description = match.group(2) or "Без описания"
-        user_data[user_id]["income"].append((amount, description))
-        await message.answer(f"✅ Доход {amount} ₽ добавлен: {description} 💼", parse_mode="HTML")
-    else:
-        await message.answer("❗ Неверный формат. Попробуйте снова.")
-    await state.clear()
-
-@dp.message_handler(lambda message: message.text == "💸 Расход")
-async def expense_start(message: types.Message, state: FSMContext):
-    await message.answer("🧾 Введите расход: сумму и назначение, например: 1000 корм для кошки")
-    await state.set_state(ExpenseState.waiting_for_expense)
-
-@dp.message_handler(ExpenseState.waiting_for_expense)
-async def add_expense(message: types.Message, state: FSMContext):
-    user_id = message.from_user.id
-    text = message.text
-    match = re.match(r"(\d+)\s+(.+)", text)
-    if match:
-        amount = int(match.group(1))
-        description = match.group(2)
-        category = "прочее"
-        for cat, keywords in user_data[user_id]["categories"].items():
-            if any(keyword in description.lower() for keyword in keywords):
-                category = cat
-                break
-        user_data[user_id]["expenses"].append((amount, description, category))
-        await message.answer(f"🔻 Расход {amount} ₽ добавлен: {description} (категория: {category})", parse_mode="HTML")
-    else:
-        await message.answer("❗ Неверный формат. Попробуйте снова.")
-    await state.clear()
-
-@dp.message_handler(lambda message: message.text == "📈 Статистика")
-async def show_stats(message: types.Message):
-    user_id = message.from_user.id
-    total_income = sum(i[0] for i in user_data[user_id]["income"])
-    total_expenses = sum(e[0] for e in user_data[user_id]["expenses"])
-    await message.answer(f"📊 Всего доходов: {total_income} ₽\n📉 Всего расходов: {total_expenses} ₽", parse_mode="HTML")
-
-@dp.message_handler(lambda message: message.text == "📊 По категориям")
-async def category_stats(message: types.Message):
-    user_id = message.from_user.id
-    stats = defaultdict(int)
-    for amount, _, category in user_data[user_id]["expenses"]:
-        stats[category] += amount
-    text = "📁 Статистика по категориям:\n"
-    for cat, total in stats.items():
-        text += f"🔸 {cat.capitalize()}: {total} ₽\n"
+    initialize_user_data(user_id)
+    
+    categories = user_data[user_id]["categories"]
+    
+    text = "<b>Ваши категории расходов:</b>\n\n"
+    for category, keywords in categories.items():
+        text += f"<b>{category.capitalize()}</b>: {', '.join(keywords)}\n"
+    
     await message.answer(text, parse_mode="HTML")
 
-@dp.message_handler(lambda message: message.text == "💰 Остаток")
-async def balance(message: types.Message):
+@dp.message_handler(commands=['добавитькатегорию'])
+async def add_category(message: types.Message):
+    """Добавить новую категорию"""
     user_id = message.from_user.id
-    income = sum(i[0] for i in user_data[user_id]["income"])
-    expenses = sum(e[0] for e in user_data[user_id]["expenses"])
-    await message.answer(f"💼 Текущий баланс: {income - expenses} ₽", parse_mode="HTML")
+    initialize_user_data(user_id)
+    
+    # Получаем текст после команды
+    command_parts = message.get_args().split(',')
+    
+    if len(command_parts) < 2:
+        await message.answer("❗ Пожалуйста, укажите название категории и ключевые слова через запятую.\nПример: /добавитькатегорию транспорт, метро, такси, автобус")
+        return
+    
+    category_name = command_parts[0].strip().lower()
+    keywords = [kw.strip().lower() for kw in command_parts[1:]]
+    
+    if category_name in user_data[user_id]["categories"]:
+        await message.answer(f"❗ Категория '{category_name}' уже существует!")
+        return
+    
+    user_data[user_id]["categories"][category_name] = keywords
+    await message.answer(f"✅ Категория '{category_name}' успешно добавлена с ключевыми словами: {', '.join(keywords)}")
+
+@dp.message_handler()
+async def handle_message(message: types.Message):
+    """Обработчик всех текстовых сообщений"""
+    user_id = message.from_user.id
+    initialize_user_data(user_id)
+    text = message.text.strip().lower()
+    
+    try:
+        # Обработка дохода (начинается с +)
+        if text.startswith('+'):
+            parts = text.split(maxsplit=1)
+            if len(parts) < 2:
+                raise ValueError("Не указано описание дохода")
+            
+            amount = int(parts[0][1:].strip())
+            description = parts[1].strip()
+            
+            user_data[user_id]["income"].append((amount, description))
+            await message.answer(f"✅ Доход <b>{amount} ₽</b> добавлен: <i>{description}</i>", parse_mode="HTML")
+        
+        # Обработка расхода (число в начале)
+        elif text[0].isdigit():
+            parts = text.split(maxsplit=1)
+            amount = int(parts[0].strip())
+            
+            # Определяем категорию по ключевым словам
+            category = "прочее"
+            description = ""
+            
+            if len(parts) > 1:
+                description = parts[1].strip()
+                for cat, keywords in user_data[user_id]["categories"].items():
+                    if any(keyword in description for keyword in keywords):
+                        category = cat
+                        break
+            
+            user_data[user_id]["expenses"].append((amount, category, description))
+            await message.answer(f"✅ Расход <b>{amount} ₽</b> добавлен в категорию: <b>{category}</b>", parse_mode="HTML")
+        
+        else:
+            await message.answer("❗ Не понимаю ваш запрос. Введите доход (начинается с +) или расход (число).\nИспользуйте /help для справки.")
+    
+    except ValueError as e:
+        await message.answer(f"❗ Ошибка: {e}\nПожалуйста, используйте правильный формат:\nДоход: +50000 зарплата\nРасход: 1500 метро")
+    except Exception as e:
+        logging.error(f"Error processing message: {e}")
+        await message.answer("❗ Произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте еще раз.")
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    executor.start_polling(dp, skip_updates=True)
